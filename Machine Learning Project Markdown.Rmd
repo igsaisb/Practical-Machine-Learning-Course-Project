@@ -1,0 +1,92 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "igsaisb"
+date: "8 June 2018"
+output: html_document
+---
+##Project Description
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+##Set up, data acqusition, etc. 
+```{r}
+##Clean the area, load package
+rm(list=ls())
+library(caret)
+
+##Get data
+Training_Data <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(Training_Data)
+
+Test_Data <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(Test_Data)
+
+str(Training_Data)
+```
+
+##Preprocessing
+There's a fair bit of useless data here including many columns have NA or blank values for almost every observation. The information on people and timestamps are not relevant to our project. We'll dump all of these.
+
+```{r}
+# Removing columns having at least 90% of NA or blank values and those of no relevance
+Col_Remove <- which(colSums(is.na(Training_Data) |Training_Data=="")>0.9*dim(Training_Data)[1]) 
+Clean_Training_Data <- Training_Data[,-Col_Remove]
+Clean_Training_Data <- Clean_Training_Data[,-c(1:7)]
+str(Clean_Training_Data)
+
+# Repeat for test set
+Col_Remove <- which(colSums(is.na(Test_Data) |Test_Data=="")>0.9*dim(Test_Data)[1]) 
+Clean_Test_Data <- Test_Data[,-Col_Remove]
+Clean_Test_Data <- Clean_Test_Data[,-1]
+str(Clean_Test_Data)
+
+```
+We'll partition of the traning set 
+```{r}
+
+set.seed(0517)
+Train_Part1 <- createDataPartition(Clean_Training_Data$classe, p=0.75, list=FALSE)
+Train1 <- Clean_Training_Data[Train_Part1,]
+Test1 <- Clean_Training_Data[-Train_Part1,]
+dim(Train1)
+```
+
+##Creating the Model: Random Forests
+We'll use the Random Forest approach for this model. We like Random Forests as runtimes are usually fast and they are able to deal with unbalanced and missing data. We'll set this for cross validation with 5 folds to attempt to avoid overfitting and balance run-time with accuracy.
+```{r}
+##Set trControl in case we want to play with it later.
+trControl <- trainControl(method="cv", number=5)
+Model_RF <- train(classe~., data=Train1, method="rf", trControl=trControl, verbose=FALSE)
+print(Model_RF)
+plot(Model_RF,main="Accuracy of Random forest model by number of predictors")
+```
+The model delivers 99.1% accuracy with 27 predictors on the training data. We now look at how it performs on test data. 
+```{r}
+Training_Prediction <- predict(Model_RF,newdata=Test1)
+Confusion_Matrix <- confusionMatrix(Test1$classe,Training_Prediction)
+Confusion_Matrix$table
+Confusion_Matrix$overall[1]
+plot(Model_RF$finalModel,main="Model error by number of trees")
+```
+With random forest, we reach an accuracy of 99.5% using cross-validation with 5 steps. There is no significal increase of the accuracy between 2 predictors and 27 and we'd probably rely on that if computing power were an issue. More than 30 trees does not reduce the error significantly
+
+##Conclusion
+The Random Forest delivers a surprisingly high level of accuracy and we will stop our modelling there. Predictions:
+```{r}
+FinalTestPred <- predict(Model_RF,newdata=Clean_Test_Data)
+FinalTestPred
+```
+
+
+
+
